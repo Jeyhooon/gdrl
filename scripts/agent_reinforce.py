@@ -9,11 +9,14 @@ import gc
 import os
 import glob
 
+import torch.nn as nn
+import torch.nn.functional as F
+
 import utils
 
-
-LEAVE_PRINT_EVERY_N_SECS = 30
-ERASE_LINE = '\x1b[2K'
+default_variables_dict = utils.get_default_variable_dict()
+LEAVE_PRINT_EVERY_N_SECS = default_variables_dict["LEAVE_PRINT_EVERY_N_SECS"]
+ERASE_LINE = default_variables_dict["ERASE_LINE"]
 
 
 class REINFORCE:
@@ -227,3 +230,54 @@ class REINFORCE:
                                        max_n_videos=max_n_videos)
         del env
         return html_data, title
+
+
+class PolicyNetReinforce(nn.Module):
+    def __init__(self,
+                 input_dim,
+                 output_dim,
+                 hidden_dims=(32, 32),
+                 activation_fc=F.relu):
+        super(PolicyNetReinforce, self).__init__()
+        self.activation_fc = activation_fc
+
+        self.input_layer = nn.Linear(input_dim, hidden_dims[0])
+        self.hidden_layers = nn.ModuleList()
+        for i in range(len(hidden_dims) - 1):
+            hidden_layer = nn.Linear(hidden_dims[i], hidden_dims[i + 1])
+            self.hidden_layers.append(hidden_layer)
+        self.output_layer = nn.Linear(hidden_dims[-1], output_dim)
+
+    def _format(self, state):
+        x = state
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x,
+                             dtype=torch.float32)
+            x = x.unsqueeze(0)
+        return x
+
+    def forward(self, state):
+        x = self._format(state)
+        x = self.activation_fc(self.input_layer(x))
+        for hidden_layer in self.hidden_layers:
+            x = self.activation_fc(hidden_layer(x))
+        return self.output_layer(x)
+
+    def full_pass(self, state):
+        logits = self.forward(state)
+        dist = torch.distributions.Categorical(logits=logits)
+        action = dist.sample()
+        logpa = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        is_exploratory = action != np.argmax(logits.detach().numpy())
+        return action.item(), is_exploratory.item(), logpa, entropy
+
+    def select_action(self, state):
+        logits = self.forward(state)
+        dist = torch.distributions.Categorical(logits=logits)
+        action = dist.sample()
+        return action.item()
+
+    def select_greedy_action(self, state):
+        logits = self.forward(state)
+        return np.argmax(logits.detach().numpy())

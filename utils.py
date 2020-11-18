@@ -8,6 +8,9 @@ import io
 import base64
 import os
 import subprocess
+from pathlib import Path
+from datetime import datetime
+
 import torch
 
 
@@ -130,3 +133,24 @@ def save_html(data, path):
 def save_checkpoint(checkpoint_dir, episode_idx, model):
     torch.save(model.state_dict(),
                os.path.join(checkpoint_dir, 'model.{}.tar'.format(episode_idx)))
+
+
+def get_default_variable_dict():
+    variable_dict = {
+        "LEAVE_PRINT_EVERY_N_SECS": 30,
+        "ERASE_LINE": '\x1b[2K'
+    }
+    return variable_dict
+
+
+def get_date_time_now():
+    return str(datetime.now().replace(microsecond=0)).replace(':', '_').replace(' ', '_')
+
+
+def create_directory(directory: str):
+
+    if not os.path.exists(directory):
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        print("Directory ", directory, " Created ")
+    else:
+        print("Directory ", directory, " already exists")
