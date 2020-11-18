@@ -15,7 +15,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 EPS = 1e-6
 BEEP = lambda: os.system("printf '\a'")
 RESULTS_DIR = os.path.join('..', 'results')
-SEEDS = (12, 34, 56, 78, 90)
+SEEDS = [12, 34, 56, 78, 90]
 
 plt.style.use('fivethirtyeight')
 params = {
@@ -33,7 +33,6 @@ np.set_printoptions(suppress=True)
 
 def main(_args):
     agent_type = _args.agent
-    policy_type = _args.policy
     results_path = _args.results_path
 
     results = []

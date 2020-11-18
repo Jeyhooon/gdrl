@@ -123,7 +123,7 @@ def get_gif_html(env_videos, title, subtitle_eps=None, max_n_videos=4):
 
 
 def save_html(data, path):
-    f = open(path, 'wb')
+    f = open(path, 'wt')
     f.write(data)
     f.close()
     print(f"HTML file saved successfully to : {path}")
