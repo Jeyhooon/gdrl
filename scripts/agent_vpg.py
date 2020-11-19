@@ -95,22 +95,22 @@ class VPG:
         self.gamma = gamma
 
         env = self.make_env_fn(**self.make_env_kargs, seed=self.seed)
-        torch.manual_seed(self.seed);
-        np.random.seed(self.seed);
+        torch.manual_seed(self.seed)
+        np.random.seed(self.seed)
         random.seed(self.seed)
 
-        nS, nA = env.observation_space.shape[0], env.action_space.n
+        state_dim, acts_dim = env.observation_space.shape[0], env.action_space.n
         self.episode_timestep = []
         self.episode_reward = []
         self.episode_seconds = []
         self.episode_exploration = []
         self.evaluation_scores = []
 
-        self.policy_model = self.policy_model_fn(nS, nA)
+        self.policy_model = self.policy_model_fn(state_dim, acts_dim)
         self.policy_optimizer = self.policy_optimizer_fn(self.policy_model,
                                                          self.policy_optimizer_lr)
 
-        self.value_model = self.value_model_fn(nS)
+        self.value_model = self.value_model_fn(state_dim)
         self.value_optimizer = self.value_optimizer_fn(self.value_model,
                                                        self.value_optimizer_lr)
         result = np.empty((max_episodes, 5))
@@ -143,7 +143,7 @@ class VPG:
             self.episode_seconds.append(episode_elapsed)
             training_time += episode_elapsed
             evaluation_score, _ = self.evaluate(self.policy_model, env)
-            self.save_checkpoint(episode - 1, self.policy_model)
+            utils.save_checkpoint(self.checkpoint_dir, episode - 1, self.policy_model)
 
             total_step = int(np.sum(self.episode_timestep))
             self.evaluation_scores.append(evaluation_score)
@@ -197,7 +197,7 @@ class VPG:
         print('Final evaluation score {:.2f}\u00B1{:.2f} in {:.2f}s training time,'
               ' {:.2f}s wall-clock time.\n'.format(
             final_eval_score, score_std, training_time, wallclock_time))
-        env.close();
+        env.close()
         del env
         self.get_cleaned_checkpoints()
         return result, final_eval_score, training_time, wallclock_time
@@ -237,8 +237,9 @@ class VPG:
 
         return self.checkpoint_paths
 
-    def demo_last(self, title='Fully-trained {} Agent', n_episodes=3, max_n_videos=3):
+    def demo_last(self, title='{} Agent - Fully Trained ', n_episodes=3, max_n_videos=3):
         env = self.make_env_fn(**self.make_env_kargs, monitor_mode='evaluation', render=True, record=True)
+        title = title.format(self.__class__.__name__)
 
         checkpoint_paths = self.get_cleaned_checkpoints()
         last_ep = max(checkpoint_paths.keys())
@@ -246,14 +247,15 @@ class VPG:
 
         self.evaluate(self.policy_model, env, n_episodes=n_episodes)
         env.close()
-        data = get_gif_html(env_videos=env.videos,
-                            title=title.format(self.__class__.__name__),
-                            max_n_videos=max_n_videos)
+        html_data = utils.get_gif_html(env_videos=env.videos,
+                                       title=title,
+                                       max_n_videos=max_n_videos)
         del env
-        return HTML(data=data)
+        return html_data, title
 
-    def demo_progression(self, title='{} Agent progression', max_n_videos=5):
+    def demo_progression(self, title='{} Agent - Progression', max_n_videos=5):
         env = self.make_env_fn(**self.make_env_kargs, monitor_mode='evaluation', render=True, record=True)
+        title = title.format(self.__class__.__name__)
 
         checkpoint_paths = self.get_cleaned_checkpoints()
         for i in sorted(checkpoint_paths.keys()):
@@ -261,16 +263,12 @@ class VPG:
             self.evaluate(self.policy_model, env, n_episodes=1)
 
         env.close()
-        data = get_gif_html(env_videos=env.videos,
-                            title=title.format(self.__class__.__name__),
-                            subtitle_eps=sorted(checkpoint_paths.keys()),
-                            max_n_videos=max_n_videos)
+        html_data = utils.get_gif_html(env_videos=env.videos,
+                                       title=title,
+                                       subtitle_eps=sorted(checkpoint_paths.keys()),
+                                       max_n_videos=max_n_videos)
         del env
-        return HTML(data=data)
-
-    def save_checkpoint(self, episode_idx, model):
-        torch.save(model.state_dict(),
-                   os.path.join(self.checkpoint_dir, 'model.{}.tar'.format(episode_idx)))
+        return html_data, title
 
 
 class ValueNet(nn.Module):
@@ -278,7 +276,7 @@ class ValueNet(nn.Module):
                  input_dim,
                  hidden_dims=(32, 32),
                  activation_fc=F.relu):
-        super(FCV, self).__init__()
+        super(ValueNet, self).__init__()
         self.activation_fc = activation_fc
 
         self.input_layer = nn.Linear(input_dim, hidden_dims[0])
