@@ -33,15 +33,15 @@ np.set_printoptions(suppress=True)
 
 def main(_args):
     agent_type = _args.agent
-    results_path = _args.results_path
+    results_path = _args.results_path + f"_{agent_type}"
 
     results = []
     best_agent, best_eval_score = None, float('-inf')
 
     if agent_type == "reinforce":
-        from scripts.agent_reinforce import REINFORCE, PolicyNetReinforce
+        from scripts.agent_reinforce import REINFORCE, PolicyNet
         AGENT = REINFORCE
-        policy_net = PolicyNetReinforce
+        policy_net = PolicyNet
     elif agent_type == "vpg":
         from scripts.agent_vpg import VPG, PolicyNetVPG
         AGENT = VPG
@@ -84,13 +84,12 @@ def main(_args):
 
     # Agent Progression
     html_data, title = best_agent.demo_progression()
-    fig_path = utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
-    webbrowser.open_new_tab(fig_path)
+    utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
+
 
     # Best Agent
     html_data, title = best_agent.demo_last()
-    fig_path = utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
-    webbrowser.open_new_tab(fig_path)
+    utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
 
     # Extracting statistics
     agent_max_t, agent_max_r, agent_max_s, \
@@ -143,6 +142,33 @@ def main(_args):
 
     fig.savefig(os.path.join(results_path, f"{agent_type.upper()}_Statistics.png"))
     plt.show()
+
+    # Saving Statistics
+    statistics_dict = {
+        "x": agent_x,
+        "max_r": agent_max_r,
+        "min_r": agent_min_r,
+        "mean_r": agent_mean_r,
+
+        "max_s": agent_max_s,
+        "min_s": agent_min_s,
+        "mean_s": agent_mean_s,
+
+        "max_t": agent_max_t,
+        "min_t": agent_min_t,
+        "mean_t": agent_mean_t,
+
+        "max_sec": agent_max_sec,
+        "min_sec": agent_min_sec,
+        "mean_sec": agent_mean_sec,
+
+        "max_rt": agent_max_rt,
+        "min_rt": agent_min_rt,
+        "mean_rt": agent_mean_rt
+    }
+
+    utils.save_data(data=statistics_dict,
+                    path=os.path.join(results_path, f"{agent_type.upper()}_Statistics_Dict"))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import os
 import subprocess
 from pathlib import Path
 from datetime import datetime
+import pickle
 
 import torch
 
@@ -154,3 +155,9 @@ def create_directory(directory: str):
         print("Directory ", directory, " Created ")
     else:
         print("Directory ", directory, " already exists")
+
+
+def save_data(data, path: str):
+    with open(path, 'wb') as pickle_data:
+        pickle.dump(data, pickle_data)
+        print(f"INFO: Data saved successfully to {path}")

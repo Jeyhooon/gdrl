@@ -198,7 +198,7 @@ class REINFORCE:
 
         return self.checkpoint_paths
 
-    def demo_last(self, title='Fully-trained {} Agent', n_episodes=3, max_n_videos=3):
+    def demo_last(self, title='{} Agent - Fully Trained ', n_episodes=3, max_n_videos=3):
         env = self.make_env_fn(**self.make_env_kargs, monitor_mode='evaluation', render=True, record=True)
         title = title.format(self.__class__.__name__)
 
@@ -214,7 +214,7 @@ class REINFORCE:
         del env
         return html_data, title
 
-    def demo_progression(self, title='{} Agent progression', max_n_videos=5):
+    def demo_progression(self, title='{} Agent - Progression', max_n_videos=5):
         env = self.make_env_fn(**self.make_env_kargs, monitor_mode='evaluation', render=True, record=True)
         title = title.format(self.__class__.__name__)
 
@@ -232,13 +232,13 @@ class REINFORCE:
         return html_data, title
 
 
-class PolicyNetReinforce(nn.Module):
+class PolicyNet(nn.Module):
     def __init__(self,
                  input_dim,
                  output_dim,
                  hidden_dims=(32, 32),
                  activation_fc=F.relu):
-        super(PolicyNetReinforce, self).__init__()
+        super(PolicyNet, self).__init__()
         self.activation_fc = activation_fc
 
         self.input_layer = nn.Linear(input_dim, hidden_dims[0])
