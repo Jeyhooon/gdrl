@@ -44,6 +44,18 @@ def get_make_env_fn(**kargs):
     return make_env_fn, kargs
 
 
+class RenderUint8(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+    
+    def render(self, mode='rgb_array'):
+        frame = self.env.render(mode=mode)
+        return frame.astype(np.uint8)
+
+
 def get_videos_html(env_videos, title, max_n_videos=5):
     videos = np.array(env_videos)
     if len(videos) == 0:

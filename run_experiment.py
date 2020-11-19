@@ -72,7 +72,7 @@ def main(_args):
         if final_eval_score > best_eval_score:
             best_eval_score = final_eval_score
             best_agent = agent
-    results = np.array(results)
+    results = np.array(results)   # dim: (num_seeds, max_episode, 5)
     _ = BEEP()
 
     # Agent Progression
@@ -84,6 +84,14 @@ def main(_args):
     utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
 
     # Extracting statistics
+    """
+    Over multiple seeds:
+    total_steps, mean_100_reward, mean_100_eval_score, training_time, wall_clock_elapsed
+    
+    result is initialized with nan values and with fixed max episode length;
+    so, mean/max/min will calculate until common episode length (min episode length for different seeds)
+    """
+
     agent_max_t, agent_max_r, agent_max_s, \
     agent_max_sec, agent_max_rt = np.max(results, axis=0).T
 
@@ -93,7 +101,7 @@ def main(_args):
     agent_mean_t, agent_mean_r, agent_mean_s, \
     agent_mean_sec, agent_mean_rt = np.mean(results, axis=0).T
 
-    agent_x = np.arange(len(agent_mean_s))
+    agent_x = np.arange(len(agent_mean_s))  # x axis values (episode numbers): 0, 1, 2, ...
 
     # Plot Statistics
     fig, axs = plt.subplots(5, 1, figsize=(20, 30), sharey=False, sharex=True)
