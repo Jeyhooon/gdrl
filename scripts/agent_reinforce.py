@@ -11,6 +11,7 @@ import glob
 
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 
 import utils
 
@@ -20,10 +21,11 @@ ERASE_LINE = default_variables_dict["ERASE_LINE"]
 
 
 class REINFORCE:
-    def __init__(self, policy_model_fn, policy_optimizer_fn, policy_optimizer_lr):
-        self.policy_model_fn = policy_model_fn
-        self.policy_optimizer_fn = policy_optimizer_fn
-        self.policy_optimizer_lr = policy_optimizer_lr
+    def __init__(self):
+
+        self.policy_model_fn = lambda nS, nA: PolicyNet(nS, nA, hidden_dims=(128, 64))
+        self.policy_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
+        self.policy_optimizer_lr = 0.0005
 
     def optimize_model(self):
         T = len(self.rewards)

@@ -38,17 +38,12 @@ def main(_args):
     results = []
     best_agent, best_eval_score = None, float('-inf')
 
-    policy_net = None
-    value_net = None
     if agent_type == "reinforce":
-        from scripts.agent_reinforce import REINFORCE, PolicyNet
+        from scripts.agent_reinforce import REINFORCE
         AGENT = REINFORCE
-        policy_net = PolicyNet
     elif agent_type == "vpg":
-        from scripts.agent_vpg import VPG, PolicyNet, ValueNet
+        from scripts.agent_vpg import VPG
         AGENT = VPG
-        policy_net = PolicyNet
-        value_net = ValueNet
     else:
         raise NotImplementedError("Other Agent types are not supported yet")
 
@@ -63,40 +58,14 @@ def main(_args):
             'goal_mean_100_reward': 475
         }
 
-        if policy_net is not None:
-            policy_model_fn = lambda nS, nA: policy_net(nS, nA, hidden_dims=(128, 64))
-            policy_model_max_grad_norm = 1
-            policy_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
-            policy_optimizer_lr = 0.0005
-
-        if value_net is not None:
-            value_model_fn = lambda nS: value_net(nS, hidden_dims=(256, 128))
-            value_model_max_grad_norm = float('inf')
-            value_optimizer_fn = lambda net, lr: optim.RMSprop(net.parameters(), lr=lr)
-            value_optimizer_lr = 0.0007
-
-        entropy_loss_weight = 0.001
 
         env_name, gamma, max_minutes, \
         max_episodes, goal_mean_100_reward = environment_settings.values()
 
-        if value_net is None:
-            agent = AGENT(policy_model_fn, policy_optimizer_fn, policy_optimizer_lr)
-        else:
-            agent = AGENT(policy_model_fn,
-                          policy_model_max_grad_norm,
-                          policy_optimizer_fn,
-                          policy_optimizer_lr,
-                          value_model_fn,
-                          value_model_max_grad_norm,
-                          value_optimizer_fn,
-                          value_optimizer_lr,
-                          entropy_loss_weight)
+        agent = AGENT()
 
         make_env_fn, make_env_kargs = utils.get_make_env_fn(env_name=env_name)
-        # make_env_fn, make_env_kargs = get_make_env_fn(env_name=env_name, unwrapped=True)
-        # make_env_fn, make_env_kargs = get_make_env_fn(
-        #     env_name=env_name, addon_wrappers=[MCCartPole,])
+
         result, final_eval_score, training_time, wallclock_time = agent.train(
             make_env_fn, make_env_kargs, seed, gamma, max_minutes, max_episodes, goal_mean_100_reward)
         results.append(result)
@@ -109,7 +78,6 @@ def main(_args):
     # Agent Progression
     html_data, title = best_agent.demo_progression()
     utils.save_html(data=html_data, path=os.path.join(results_path, f"{title}.html"))
-
 
     # Best Agent
     html_data, title = best_agent.demo_last()
@@ -197,7 +165,7 @@ def main(_args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", type=str, default="vpg",
+    parser.add_argument("--agent", type=str, default="reinforce",
                         help="agent type")
 
     parser.add_argument("--results_path", type=str,
