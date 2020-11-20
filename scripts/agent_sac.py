@@ -198,36 +198,69 @@ class FCGP(nn.Module):
         return action
 
 
-class SAC():
+class ReplayBuffer:
     def __init__(self,
-                 replay_buffer_fn,
-                 policy_model_fn,
-                 policy_max_grad_norm,
-                 policy_optimizer_fn,
-                 policy_optimizer_lr,
-                 value_model_fn,
-                 value_max_grad_norm,
-                 value_optimizer_fn,
-                 value_optimizer_lr,
-                 n_warmup_batches,
-                 update_target_every_steps,
-                 tau):
-        self.replay_buffer_fn = replay_buffer_fn
+                 max_size=10000,
+                 batch_size=64):
+        self.ss_mem = np.empty(shape=(max_size), dtype=np.ndarray)
+        self.as_mem = np.empty(shape=(max_size), dtype=np.ndarray)
+        self.rs_mem = np.empty(shape=(max_size), dtype=np.ndarray)
+        self.ps_mem = np.empty(shape=(max_size), dtype=np.ndarray)
+        self.ds_mem = np.empty(shape=(max_size), dtype=np.ndarray)
 
-        self.policy_model_fn = policy_model_fn
-        self.policy_max_grad_norm = policy_max_grad_norm
-        self.policy_optimizer_fn = policy_optimizer_fn
-        self.policy_optimizer_lr = policy_optimizer_lr
+        self.max_size = max_size
+        self.batch_size = batch_size
+        self._idx = 0
+        self.size = 0
 
-        self.value_model_fn = value_model_fn
-        self.value_max_grad_norm = value_max_grad_norm
-        self.value_optimizer_fn = value_optimizer_fn
-        self.value_optimizer_lr = value_optimizer_lr
+    def store(self, sample):
+        s, a, r, p, d = sample
+        self.ss_mem[self._idx] = s
+        self.as_mem[self._idx] = a
+        self.rs_mem[self._idx] = r
+        self.ps_mem[self._idx] = p
+        self.ds_mem[self._idx] = d
 
-        self.n_warmup_batches = n_warmup_batches
-        self.update_target_every_steps = update_target_every_steps
+        self._idx += 1
+        self._idx = self._idx % self.max_size
 
-        self.tau = tau
+        self.size += 1
+        self.size = min(self.size, self.max_size)
+
+    def sample(self, batch_size=None):
+        if batch_size == None:
+            batch_size = self.batch_size
+
+        idxs = np.random.choice(
+            self.size, batch_size, replace=False)
+        experiences = np.vstack(self.ss_mem[idxs]), \
+                      np.vstack(self.as_mem[idxs]), \
+                      np.vstack(self.rs_mem[idxs]), \
+                      np.vstack(self.ps_mem[idxs]), \
+                      np.vstack(self.ds_mem[idxs])
+        return experiences
+
+    def __len__(self):
+        return self.size
+
+
+class SAC:
+    def __init__(self):
+
+        self.replay_buffer_fn = lambda: ReplayBuffer(max_size=1000000, batch_size=256)
+        self.n_warmup_batches = 10
+        self.update_target_every_steps = 1
+        self.tau = 0.005
+
+        self.policy_model_fn = lambda nS, bounds: FCGP(nS, bounds, hidden_dims=(256, 256))
+        self.policy_max_grad_norm = float('inf')
+        self.policy_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
+        self.policy_optimizer_lr = 0.0005
+
+        self.value_model_fn = lambda nS, nA: FCQSA(nS, nA, hidden_dims=(256, 256))
+        self.value_max_grad_norm = float('inf')
+        self.value_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
+        self.value_optimizer_lr = 0.0007
 
     def optimize_model(self, experiences):
         states, actions, rewards, next_states, is_terminals = experiences
@@ -244,8 +277,10 @@ class SAC():
         self.policy_model.alpha_optimizer.step()
         alpha = self.policy_model.logalpha.exp()
 
-        current_q_sa_a = self.online_value_model_a(states, current_actions)
-        current_q_sa_b = self.online_value_model_b(states, current_actions)
+        # current_q_sa_a = self.online_value_model_a(states, current_actions)
+        # current_q_sa_b = self.online_value_model_b(states, current_actions)
+        current_q_sa_a = self.target_value_model_a(states, current_actions)
+        current_q_sa_b = self.target_value_model_b(states, current_actions)
         current_q_sa = torch.min(current_q_sa_a, current_q_sa_b)
         policy_loss = (alpha * logpi_s - current_q_sa).mean()
 
@@ -326,7 +361,7 @@ class SAC():
         env = self.make_env_fn(**self.make_env_kargs, seed=self.seed)
         torch.manual_seed(self.seed) ; np.random.seed(self.seed) ; random.seed(self.seed)
 
-        nS, nA = env.observation_space.shape[0], env.action_space.shape[0]
+        state_dim, acts_dim = env.observation_space.shape[0], env.action_space.shape[0]
         action_bounds = env.action_space.low, env.action_space.high
         self.episode_timestep = []
         self.episode_reward = []
@@ -334,13 +369,13 @@ class SAC():
         self.evaluation_scores = []
         self.episode_exploration = []
 
-        self.target_value_model_a = self.value_model_fn(nS, nA)
-        self.online_value_model_a = self.value_model_fn(nS, nA)
-        self.target_value_model_b = self.value_model_fn(nS, nA)
-        self.online_value_model_b = self.value_model_fn(nS, nA)
+        self.target_value_model_a = self.value_model_fn(state_dim, acts_dim)
+        self.online_value_model_a = self.value_model_fn(state_dim, acts_dim)
+        self.target_value_model_b = self.value_model_fn(state_dim, acts_dim)
+        self.online_value_model_b = self.value_model_fn(state_dim, acts_dim)
         self.update_value_networks(tau=1.0)
 
-        self.policy_model = self.policy_model_fn(nS, action_bounds)
+        self.policy_model = self.policy_model_fn(state_dim, action_bounds)
 
         self.value_optimizer_a = self.value_optimizer_fn(self.online_value_model_a,
                                                          self.value_optimizer_lr)

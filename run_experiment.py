@@ -36,20 +36,12 @@ def main(_args):
     results_path = _args.results_path + f"_{agent_type}"
 
     results = []
+    environment_settings = {}
     best_agent, best_eval_score = None, float('-inf')
 
     if agent_type == "reinforce":
         from scripts.agent_reinforce import REINFORCE
         AGENT = REINFORCE
-    elif agent_type == "vpg":
-        from scripts.agent_vpg import VPG
-        AGENT = VPG
-    else:
-        raise NotImplementedError("Other Agent types are not supported yet")
-
-    utils.create_directory(results_path)
-
-    for seed in SEEDS:
         environment_settings = {
             'env_name': 'CartPole-v1',
             'gamma': 1.00,
@@ -57,21 +49,52 @@ def main(_args):
             'max_episodes': 10000,
             'goal_mean_100_reward': 475
         }
+        inner_wrappers = None
 
+    elif agent_type == "vpg":
+        from scripts.agent_vpg import VPG
+        AGENT = VPG
+        environment_settings = {
+            'env_name': 'CartPole-v1',
+            'gamma': 1.00,
+            'max_minutes': 10,
+            'max_episodes': 10000,
+            'goal_mean_100_reward': 475
+        }
+        inner_wrappers = None
+
+    elif agent_type == "sac":
+        from scripts.agent_sac import SAC
+        AGENT = SAC
+        environment_settings = {
+            'env_name': 'HalfCheetah-v2',
+            'gamma': 0.99,
+            'max_minutes': 300,
+            'max_episodes': 10000,
+            'goal_mean_100_reward': 2000
+        }
+        inner_wrappers = [utils.RenderUint8]
+    else:
+        raise NotImplementedError("Other Agent types are not supported yet")
+
+    utils.create_directory(results_path)
+
+    for seed in SEEDS:
 
         env_name, gamma, max_minutes, \
         max_episodes, goal_mean_100_reward = environment_settings.values()
-
         agent = AGENT()
-
-        make_env_fn, make_env_kargs = utils.get_make_env_fn(env_name=env_name)
+        make_env_fn, make_env_kargs = utils.get_make_env_fn(env_name=env_name, inner_wrappers=inner_wrappers)
 
         result, final_eval_score, training_time, wallclock_time = agent.train(
             make_env_fn, make_env_kargs, seed, gamma, max_minutes, max_episodes, goal_mean_100_reward)
+
         results.append(result)
+
         if final_eval_score > best_eval_score:
             best_eval_score = final_eval_score
             best_agent = agent
+
     results = np.array(results)   # dim: (num_seeds, max_episode, 5)
     _ = BEEP()
 
@@ -173,7 +196,7 @@ def main(_args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent", type=str, default="reinforce",
+    parser.add_argument("--agent", type=str, default="sac",
                         help="agent type")
 
     parser.add_argument("--results_path", type=str,
