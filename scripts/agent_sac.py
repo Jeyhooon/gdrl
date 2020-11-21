@@ -25,16 +25,15 @@ ERASE_LINE = default_variables_dict["ERASE_LINE"]
 class FCQSA(nn.Module):
     def __init__(self,
                  input_dim,
-                 output_dim,
-                 hidden_dims=(32 ,32),
+                 hidden_dims=(32, 32),
                  activation_fc=F.relu):
         super(FCQSA, self).__init__()
         self.activation_fc = activation_fc
 
-        self.input_layer = nn.Linear(input_dim + output_dim, hidden_dims[0])
+        self.input_layer = nn.Linear(input_dim, hidden_dims[0])
         self.hidden_layers = nn.ModuleList()
         for i in range(len(hidden_dims ) -1):
-            hidden_layer = nn.Linear(hidden_dims[i], hidden_dims[ i +1])
+            hidden_layer = nn.Linear(hidden_dims[i], hidden_dims[i+1])
             self.hidden_layers.append(hidden_layer)
         self.output_layer = nn.Linear(hidden_dims[-1], 1)
 
@@ -67,13 +66,13 @@ class FCQSA(nn.Module):
         return x
 
     def load(self, experiences):
-        states, actions, new_states, rewards, is_terminals = experiences
+        states, actions, rewards, new_states, is_terminals = experiences
         states = torch.from_numpy(states).float().to(self.device)
         actions = torch.from_numpy(actions).float().to(self.device)
-        new_states = torch.from_numpy(new_states).float().to(self.device)
         rewards = torch.from_numpy(rewards).float().to(self.device)
+        new_states = torch.from_numpy(new_states).float().to(self.device)
         is_terminals = torch.from_numpy(is_terminals).float().to(self.device)
-        return states, actions, new_states, rewards, is_terminals
+        return states, actions, rewards, new_states, is_terminals
 
 
 # Fully Connected - Gaussian Policy
@@ -83,7 +82,7 @@ class FCGP(nn.Module):
                  action_bounds,
                  log_std_min=-20,
                  log_std_max=2,
-                 hidden_dims=(32 ,32),
+                 hidden_dims=(32,32),
                  activation_fc=F.relu,
                  entropy_lr=0.001):
         super(FCGP, self).__init__()
@@ -97,9 +96,9 @@ class FCGP(nn.Module):
                                      hidden_dims[0])
 
         self.hidden_layers = nn.ModuleList()
-        for i in range(len(hidden_dims ) -1):
+        for i in range(len(hidden_dims)-1):
             hidden_layer = nn.Linear(
-                hidden_dims[i], hidden_dims[ i +1])
+                hidden_dims[i], hidden_dims[i+1])
             self.hidden_layers.append(hidden_layer)
 
         self.output_layer_mean = nn.Linear(hidden_dims[-1], len(self.env_max))
@@ -119,8 +118,10 @@ class FCGP(nn.Module):
                                     device=self.device,
                                     dtype=torch.float32)
 
-        self.nn_min = F.tanh(torch.Tensor([float('-inf')])).to(self.device)
-        self.nn_max = F.tanh(torch.Tensor([float('inf')])).to(self.device)
+        self.nn_min = F.tanh(torch.Tensor([float('-inf')])).to(self.device)     # ~ -1
+        self.nn_max = F.tanh(torch.Tensor([float('inf')])).to(self.device)      # ~ +1
+
+        # (x - nn_min) / (nn_max - nn_min) = (y - env_min) / (env_max - env_min)
         self.rescale_fn = lambda x: (x - self.nn_min) * (self.env_max - self.env_min) / \
                                     (self.nn_max - self.nn_min) + self.env_min
 
@@ -257,7 +258,7 @@ class SAC:
         self.policy_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
         self.policy_optimizer_lr = 0.0005
 
-        self.value_model_fn = lambda nS, nA: FCQSA(nS, nA, hidden_dims=(256, 256))
+        self.value_model_fn = lambda nS, nA: FCQSA(nS + nA, hidden_dims=(256, 256))
         self.value_max_grad_norm = float('inf')
         self.value_optimizer_fn = lambda net, lr: optim.Adam(net.parameters(), lr=lr)
         self.value_optimizer_lr = 0.0007
